@@ -160,7 +160,7 @@ def on_disconnect(client, userdata, rc):
         log.error("Disconnected from MQTT broker!")
 
 def connect_mqtt() -> mqtt_client:
-    client = mqtt_client.Client(client_id)
+    client = mqtt_client.Client(mqtt_client.CallbackAPIVersion.VERSION1, client_id)
     if mqtt_user is not None and mqtt_pwd is not None:
         client.username_pw_set(mqtt_user, mqtt_pwd)
     client.on_connect = on_connect
@@ -266,7 +266,15 @@ def limitHomeInput(client: mqtt_client):
 
     # ensure we have data to work on
     if not(hub.ready() and inv.ready() and smt.ready()):
-        return
+        if(hub.ready() and smt.ready()):
+            grid_power = smt.getPower() - smt.zero_offset
+            hub_power = hub.getOutputHomePower()
+            hub_contribution_ask = hub_power+grid_power     # the power we need from hub
+            hub_contribution_ask = 0 if hub_contribution_ask < 0 else hub_contribution_ask
+            log.info(f'No inverter setup. Limit the hub output to : {hub_contribution_ask}w')
+            hub.setOutputLimit(hub_contribution_ask)
+        else:
+            return
 
     inv_limit = inv.getLimit()
     hub_limit = hub.getLimit()
@@ -288,7 +296,6 @@ def limitHomeInput(client: mqtt_client):
     remainder = demand - direct_panel_power - hub_power        # eq grid_power
     hub_contribution_ask = hub_power+remainder     # the power we need from hub
     hub_contribution_ask = 0 if hub_contribution_ask < 0 else hub_contribution_ask
-
 
     # sunny, producing
     if direct_panel_power > 0:

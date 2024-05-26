@@ -45,7 +45,7 @@ class Solarflow:
         self.lastFullTS = None          # keep track of last time the battery pack was full (100%)
         self.lastEmptyTS = None         # keep track of last time the battery pack was empty (0%)
         self.lastSolarInputTS = None    # time of the last received solar input value
-        self.batteryTarget = None
+        self.batteryTarget = "discharging"
 
         self.property_topic = f'iot/{self.SF_PRODUCT_ID}/{self.deviceId}/properties/write'
         self.chargeThrough = True
@@ -334,7 +334,8 @@ class Solarflow:
         fullage = self.getLastFullBattery()
         emptyage = self.getLastEmptyBattery()
         can_discharge = (self.batteryTarget == "discharging") or (self.batteryTarget == "charging" and fullage < self.fullChargeInterval)
-        if  self.chargeThrough and (limit > 0 and (not can_discharge or fullage < 0)):
+        log.info(f'{self.batteryTarget}, {fullage}, {self.fullChargeInterval}, {can_discharge}')
+        if  self.chargeThrough and (limit > 0 and (not can_discharge)):
             log.info(f'Battery hasn\'t fully charged for {fullage:.1f} hours! To ensure it is fully charged at least every {self.fullChargeInterval}hrs not discharging now!')
             # either limit to 0 or only give away what is higher than min_charge_level
             limit = 0
