@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import logging
 import json
 import sys
-from utils import TimewindowBuffer, RepeatedTimer, deep_get
+from utils import TimewindowBuffer, RepeatedTimer
 import requests
 from solarflow import Solarflow
 
@@ -86,7 +86,6 @@ class Smartmeter:
             if hub.getDischargePower() > 0:
                 self.trigger_callback(self.client)
 
-
     def handleMsg(self, msg):
         if msg.topic.startswith(self.base_topic) and msg.payload:
             payload = json.loads(msg.payload.decode())
@@ -95,8 +94,13 @@ class Smartmeter:
                 self.phase_values.update({msg.topic:payload})
                 self.updPower()
             if type(payload) is dict:
-                try: 
-                    value = deep_get(payload,self.cur_accessor)
+                try:
+                    if(type(self) is ZendureCT):
+                        #TODO : Move to cur_accessor with index in parameter in config.ini
+                        value = self.deep_get(payload,"circuits[0].gridPower")
+                    else:
+                        value = self.deep_get(payload,self.cur_accessor)
+
                 except:
                     log.error(f'Could not get value from topic payload: {sys.exc_info()}')
 
@@ -113,6 +117,43 @@ class Smartmeter:
     def getPreviousPower(self):
         return self.power.previous()
     
+    def deep_get(self, dictionary, keys, default=None):
+        import re
+        if isinstance(keys, str):
+            keys = re.split(r'\.(?![^\[]*\])', keys)
+        else:
+            raise ValueError("The 'keys' parameter must be a string.")
+
+        for key in keys:
+            if isinstance(dictionary, list):
+                match = re.match(r"(\w+)\[(\d+)\]", key)
+                if match:
+                    key, index = match.groups()
+                    index = int(index)
+                    if index < len(dictionary):
+                        dictionary = dictionary[index]
+                    else:
+                        return default
+                else:
+                    return default
+            else:
+                match = re.match(r"(\w+)\[(\d+)\]", key)
+                if match:
+                    key, index = match.groups()
+                    index = int(index)
+                    if key in dictionary:
+                        dictionary = dictionary[key]
+                        if isinstance(dictionary, list) and index < len(dictionary):
+                            dictionary = dictionary[index]
+                        else:
+                            return default
+                    else:
+                        return default
+                elif key in dictionary:
+                    dictionary = dictionary[key]
+                else:
+                    return default
+        return dictionary
 
 
 class Poweropti(Smartmeter):
@@ -176,6 +217,27 @@ class ShellyEM3(Smartmeter):
         for t in topics:
             self.client.subscribe(t)
             log.info(f'Shelly3EM subscribing: {t}')
+
+class ZendureCT(Smartmeter):
+    opts = {"product_id":str, "device_id":str, "rapid_change_diff":int, "zero_offset": int}
+
+    def __init__(self, client: mqtt_client, product_id:str, device_id:str, rapid_change_diff:int = 500, zero_offset:int = 0, callback = Smartmeter.default_calllback):
+        self.client = client
+        self.base_topic = f'/{product_id}/{device_id}/properties/report'
+        self.power = TimewindowBuffer(minutes=1)
+        self.phase_values = {}
+        self.rapid_change_diff = rapid_change_diff
+        self.zero_offset = zero_offset
+        self.last_trigger_value = 0
+        self.trigger_callback = callback
+        log.info(f'Using {type(self).__name__}: Base topic: {self.base_topic}')
+
+    def subscribe(self):
+        topics = [f'{self.base_topic}',
+                 ]
+        for t in topics:
+            self.client.subscribe(t)
+            log.info(f'ZendureCT subscribing: {t}')
 
 class VZLogger(Smartmeter):
     opts = {"cur_usage_topic":str, "rapid_change_diff":int, "zero_offset": int}
