@@ -434,9 +434,12 @@ def limitHomeInput(client: mqtt_client):
             grid_power = smt.getPower() - smt.zero_offset
             hub_power = hub.getOutputHomePower()
             hub_contribution_ask = hub_power+grid_power     # the power we need from hub
-            hub_contribution_ask = 0 if hub_contribution_ask < 0 else hub_contribution_ask
-            log.info(f'No inverter setup. Limit the hub output to : {hub_contribution_ask}w')
-            hub.setOutputLimit(hub_contribution_ask)
+            hub_contribution_ask = 0 if hub_contribution_ask < 0 else hub_contribution_ask + 20 #add 20w for measurement error
+            log.info(f'No inverter setup. Limit the hub output to : {hub_contribution_ask}w | {hub_power} + {grid_power}')
+            sf_contribution = getSFPowerLimit(hub, hub_contribution_ask)
+            hub_limit = hub.setOutputLimit(sf_contribution)
+            limit = hub_limit
+            return
         else:
             return
 

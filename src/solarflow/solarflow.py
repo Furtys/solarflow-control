@@ -533,6 +533,7 @@ class Solarflow:
                         log.warning(f"Ignoring solarflow-hub metric: {metric}")
 
     def setOutputLimit(self, limit: int):
+        log.info(f"Ask for new limit ! {limit:.1f}W")
         # since the hub is slow in adoption we should not try to set the limit too frequently
         # 30-45s seems ok
         now = datetime.now()
@@ -580,7 +581,7 @@ class Solarflow:
         # currently the hub doesn't support single steps for limits below 100
         # to get a fine granular steering at this level we need to fall back to the inverter limit
         # if controlling the inverter is not possible we should stick to either 0 or 100W
-        if limit <= 100:
+        if limit <= 100 and limit != 0:
             # limitInverter(client,limit)
             # log.info(f'The output limit would be below 100W ({limit}W). Would need to limit the inverter to match it precisely')
             m = divmod(limit, 30)[0]

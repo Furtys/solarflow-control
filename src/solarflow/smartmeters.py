@@ -273,6 +273,7 @@ class ZendureCT(Smartmeter):
         self.zero_offset = zero_offset
         self.last_trigger_value = 0
         self.trigger_callback = callback
+        self.scaling_factor = 1
         log.info(f'Using {type(self).__name__}: Base topic: {self.base_topic}')
 
     def subscribe(self):
